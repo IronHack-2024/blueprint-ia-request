@@ -1,10 +1,12 @@
+// Import third party modules
 const express = require('express');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
 dotenv.config();
 const PORT = process.env.PORT || 3000;
-const API_KEY = process.env.API_KEY;
+const API_KEY = process.env.API_KEY; // setting API Key for the gen ai model
 
+// Importing the generative AI library from google
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const app = express();
@@ -12,58 +14,51 @@ const app = express();
 app.use(express.json());
 app.use(morgan('tiny'));
 
+// Function to generate a prompt for the AI model (gemini in this case)
 const createPrompt = (topic) => {
     return `
-    Eres un asistente para aprender programación. Genera una pregunta de opción múltiple adecuada para desarrolladores junior sobre ${topic}. 
-    Incluye cuatro opciones (a, b, c, d) y señala cuál es la correcta. 
-    La respuesta debe seguir este formato:
-
-    [Pregunta aquí]
-    (a) Opción A
-    (b) Opción B
-    (c) Opción C
-    (d) Opción D
-
-    Respuesta correcta: [Opción correcta]
-    Explicación: [Explicación de la respuesta correcta]
-    `;
+    You are an expert programming instructor specialized in fullstack development. Generate a random multiple choice question in english suitable for junior fullstack developers. Focus on practical, real-world scenarios covering: ${topic}. 
+    Return ONLY valid JSON like this example:
+    {
+        "question": "Question text here",
+        "answerOptions": [
+            {"answer": "Option 1", "isCorrect": boolean},
+            {"answer": "Option 2", "isCorrect": boolean},
+            {"answer": "Option 3", "isCorrect": boolean},
+            {"answer": "Option 4", "isCorrect": boolean}
+        ],
+        "explanation": "Explanation here"
+}`;
 };
 
+// Function to generate a multiple-choice question using the AI model
 async function generateMultipleChoiceQuestion(topic) {
-    const prompt = createPrompt(topic);
-    const genAI = new GoogleGenerativeAI(process.env.API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const prompt = createPrompt(topic); // Create prompt with topic
+    const genAI = new GoogleGenerativeAI(process.env.API_KEY); // Initialize the model
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Define which model we are using
 
     try {
-        const response = await model.generateContent(prompt); 
-        const generatedText = response.response.text(); 
+        const response = await model.generateContent(prompt); // Request content generation from the model
+        const generatedText = response.response.text(); // Retrieve the generated text
 
-        const cleanText = (text) => {
-            return text
-            .replace(/#/g, '')           
-            .replace(/\*/g, '')        
-            .replace(/\n/g, ' ')       
-            .replace(/\s+/g, ' ')        
-            .trim()                      
-            
-        };
-
-        const cleanedQuestion = cleanText(generatedText);
-        return cleanedQuestion; 
+        const jsonStart = generatedText.indexOf('{');
+        const jsonEnd = generatedText.lastIndexOf('}') + 1;
+        return JSON.parse(generatedText.slice(jsonStart, jsonEnd));
         
     } catch (error) {
-        console.error("Error al generar la pregunta:", error.response ? error.response.data : error.message);
+        console.error("Error generating the question:", error.response ? error.response.data : error.message);
         throw error; 
     }
 }
 
+// Endpoint to get the generated question from the AI
 app.get('/api', async (req, res) => {
     const topic = req.query.topic || "Node.js";   
     try {
-        const question = await generateMultipleChoiceQuestion(topic); 
-        res.json({ question }); 
+        const quizData = await generateMultipleChoiceQuestion(topic); 
+        res.json({ quizData }); 
     } catch (error) {
-        res.status(500).json({ error: "Error al generar la pregunta" });
+        res.status(500).json({ error: "Error generating the question" });
     }
 
 })

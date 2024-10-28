@@ -1,8 +1,8 @@
 {
   "name": "blueprint-ia-request",
   "version": "1.0.0",
-  "description": "",
   "main": "index.js",
+  "description": "",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon app.js",
