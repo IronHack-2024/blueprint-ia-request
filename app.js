@@ -4,10 +4,11 @@ const morgan = require('morgan');
 const dotenv = require('dotenv');
 dotenv.config();
 const PORT = process.env.PORT || 3000;
-const API_KEY = process.env.API_KEY; // setting API Key for the gen ai model
+
 
 // Importing the generative AI library from google
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { result } = require('lodash');
 
 const app = express();
 
@@ -43,11 +44,9 @@ async function generateMultipleChoiceQuestion(topic) {
     try {
         const response = await model.generateContent(prompt); // Request content generation from the model
         const generatedText = response.response.text(); // Retrieve the generated text
-
         const jsonStart = generatedText.indexOf('{');
         const jsonEnd = generatedText.lastIndexOf('}') + 1;
         return JSON.parse(generatedText.slice(jsonStart, jsonEnd));
-        
     } catch (error) {
         console.error("Error generating the question:", error.response ? error.response.data : error.message);
         throw error; 
@@ -55,11 +54,29 @@ async function generateMultipleChoiceQuestion(topic) {
 }
 
 // Endpoint to get the generated question from the AI
-app.get('/api', async (req, res) => {
-    const topic = req.query.topic || "Node.js";   
+app.get('/api/question/ai', async (req, res) => {
+
+    const topic = req.query.topic || "frontend and Backend programming";
+
+    if (topic.length < 2 || topic.length > 140) {
+    return res.status(400).json({ error: "Topic must be at least 2 characters and not exceed 140 characters."});
+    }
+
+    const amount = Math.min(Math.max(parseInt(req.query.amount) || 1, 1), 10);
+    const questions = [];
+
     try {
-        const quizData = await generateMultipleChoiceQuestion(topic); 
-        res.json({ quizData }); 
+        for (let i = 0; i < amount; i++) {
+            const quizData = await generateMultipleChoiceQuestion(topic);
+            questions.push({
+                ...quizData, 	
+                status: "pending"
+	});
+        }
+        res.status(200).json({
+            message: "Random question delivered successfully",
+            results: questions
+        });
     } catch (error) {
         res.status(500).json({ error: "Error generating the question" });
     }
